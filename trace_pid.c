@@ -46,17 +46,34 @@ static char *get_process_cmdline(struct task_struct *task) {
     return cmdline;
 }
 
+static char* blocklist[] = {
+    "amagas",
+};
+
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     struct task_struct *task = current;
     char *cmdline = get_process_cmdline(task);
 
     if (cmdline) {
         printk(KERN_INFO "New PID created: %d, Command: %s\n", task->pid, cmdline);
-        kfree(cmdline); // Free the allocated memory after use
     } else {
         printk(KERN_INFO "New PID created: %d, Command: (empty)\n", task->pid);
+        return 0;
     }
 
+    int cmp;
+    for (size_t i=0;i<sizeof(blocklist)/ sizeof(char*);i++){
+        cmp = strncmp(blocklist[i], cmdline, strlen(cmdline));
+        printk(KERN_INFO "%s %s %d\n",
+            blocklist[i],
+            cmdline,
+            cmp
+        );
+        // TODO: block if unwanted
+    }
+    if (cmdline) {
+        kfree(cmdline); // Free the allocated memory after use
+    }
     return 0; // Return 0 to continue execution
 }
 
@@ -72,11 +89,11 @@ static int __init trace_pid_init(void) {
     kp.post_handler = handler_post;
 
     if (register_kprobe(&kp) < 0) {
-        printk(KERN_ERR "Failed to register kprobe for __set_task_comm\n");
+        printk(KERN_ERR "Failed to register kprobe for finalize_exec\n");
         return -1;
     }
 
-    printk(KERN_INFO "Kprobe registered for __set_task_comm\n");
+    printk(KERN_INFO "Kprobe registered for finalize_exec\n");
     return 0;
 }
 
