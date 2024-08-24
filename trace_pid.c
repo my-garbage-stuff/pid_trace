@@ -9,6 +9,13 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 
+
+#include "file.c"
+
+static char* blocklist[] = {
+    "amagas",
+};
+
 static char *get_process_cmdline(struct task_struct *task) {
     struct mm_struct *mm;
     char *cmdline;
@@ -46,29 +53,28 @@ static char *get_process_cmdline(struct task_struct *task) {
     return cmdline;
 }
 
-static char* blocklist[] = {
-    "amagas",
-};
-
 static int handler_pre(struct kprobe *p, struct pt_regs *regs) {
     struct task_struct *task = current;
     char *cmdline = get_process_cmdline(task);
 
     if (cmdline) {
-        printk(KERN_INFO "New PID created: %d, Command: %s\n", task->pid, cmdline);
+        printk(KERN_INFO "New PID created: %d, Command: %s, Comm: %s\n", task->pid, cmdline, task->comm);
     } else {
         printk(KERN_INFO "New PID created: %d, Command: (empty)\n", task->pid);
         return 0;
     }
 
-    int cmp;
+    char* cmp;
     for (size_t i=0;i<sizeof(blocklist)/ sizeof(char*);i++){
-        cmp = strncmp(blocklist[i], cmdline, strlen(cmdline));
-        printk(KERN_INFO "%s %s %d\n",
+        cmp = strstr(cmdline, blocklist[i]);
+        printk(KERN_INFO "%s %s %s\n",
             blocklist[i],
             cmdline,
             cmp
         );
+        if(cmp){
+             return -1;
+        }
         // TODO: block if unwanted
     }
     if (cmdline) {
